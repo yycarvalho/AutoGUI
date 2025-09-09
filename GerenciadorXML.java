@@ -31,6 +31,7 @@ class GerenciadorXML {
             XMLStreamWriter w = xof.createXMLStreamWriter(new OutputStreamWriter(bos, StandardCharsets.UTF_8));
             w.writeStartDocument("UTF-8", "1.0");
             w.writeStartElement("mapa");
+            w.writeAttribute("versao", "2.0");
             for (Acao acao : acoes) {
                 w.writeStartElement("acao");
                 w.writeAttribute("id", String.valueOf(acao.getId()));
@@ -41,7 +42,7 @@ class GerenciadorXML {
                 w.writeAttribute("timestamp", acao.getTimestampFormatted());
                 w.writeAttribute("delay", String.valueOf(acao.getDelay()));
                 
-                // Atributos de verificação
+                // Atributos de verificação (v1.0 compat)
                 w.writeAttribute("verificarElemento", String.valueOf(acao.isVerificarElemento()));
                 if (acao.getTipoVerificacao() != null) {
                     w.writeAttribute("tipoVerificacao", acao.getTipoVerificacao().name());
@@ -50,6 +51,16 @@ class GerenciadorXML {
                     w.writeAttribute("valorEsperado", acao.getValorEsperado());
                 }
                 w.writeAttribute("timeoutVerificacao", String.valueOf(acao.getTimeoutVerificacao()));
+                
+                // Novos campos v2.0
+                if (acao.getScreenshotBase64() != null && !acao.getScreenshotBase64().isEmpty()) {
+                    w.writeStartElement("verificacaoVisual");
+                    w.writeAttribute("width", String.valueOf(acao.getVerificacaoWidth()));
+                    w.writeAttribute("height", String.valueOf(acao.getVerificacaoHeight()));
+                    w.writeAttribute("tolerancia", String.valueOf(acao.getToleranciaComparacao()));
+                    w.writeCData(acao.getScreenshotBase64());
+                    w.writeEndElement();
+                }
                 
                 w.writeEndElement();
             }
@@ -103,8 +114,28 @@ class GerenciadorXML {
                         acao.setValorEsperado(valorEsperado);
                     }
                     
-                    int timeoutVerificacao = Integer.parseInt(element.getAttribute("timeoutVerificacao"));
-                    acao.setTimeoutVerificacao(timeoutVerificacao);
+                    String timeoutAttr = element.getAttribute("timeoutVerificacao");
+                    if (timeoutAttr != null && !timeoutAttr.isEmpty()) {
+                        int timeoutVerificacao = Integer.parseInt(timeoutAttr);
+                        acao.setTimeoutVerificacao(timeoutVerificacao);
+                    }
+                    
+                    // v2.0 - Nó de verificação visual opcional
+                    NodeList visuais = element.getElementsByTagName("verificacaoVisual");
+                    if (visuais != null && visuais.getLength() > 0) {
+                        Element visual = (Element) visuais.item(0);
+                        String wAttr = visual.getAttribute("width");
+                        String hAttr = visual.getAttribute("height");
+                        String tolAttr = visual.getAttribute("tolerancia");
+                        if (wAttr != null && !wAttr.isEmpty()) acao.setVerificacaoWidth(Integer.parseInt(wAttr));
+                        if (hAttr != null && !hAttr.isEmpty()) acao.setVerificacaoHeight(Integer.parseInt(hAttr));
+                        if (tolAttr != null && !tolAttr.isEmpty()) acao.setToleranciaComparacao(Integer.parseInt(tolAttr));
+                        
+                        String base64 = visual.getTextContent();
+                        if (base64 != null && !base64.trim().isEmpty()) {
+                            acao.setScreenshotBase64(base64.trim());
+                        }
+                    }
                 }
                 
                 String timestampStr = element.getAttribute("timestamp");
