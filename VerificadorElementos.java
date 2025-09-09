@@ -49,6 +49,7 @@ public class VerificadorElementos {
                     return verificarTexto(x, y, valorEsperado);
                 }
                 case IMAGEM -> {
+                    // valorEsperado pode ser Base64 de referência
                     return verificarImagem(x, y, valorEsperado);
                 }
                 case ELEMENTO_VISIVEL -> {
@@ -182,7 +183,7 @@ public class VerificadorElementos {
             Rectangle area = new Rectangle(x - largura/2, y - altura/2, largura, altura);
             BufferedImage captura = robot.createScreenCapture(area);
             
-            boolean imagemCorresponde = compararImagens(captura, valorEsperado);
+            boolean imagemCorresponde = compararImagensBase64(captura, valorEsperado, 10);
             
             if (imagemCorresponde && configuracao.isLogDetalhado()) {
                 logger.fine(String.format("Imagem verificada: referência('%s') em (%d,%d)", 
@@ -192,6 +193,17 @@ public class VerificadorElementos {
             return imagemCorresponde;
         } catch (Exception e) {
             logger.log(Level.WARNING, "Erro ao verificar imagem: " + e.getMessage(), e);
+            return false;
+        }
+    }
+
+    public boolean verificarImagemAreaTolBase64(int x, int y, int largura, int altura, String referenciaBase64, int toleranciaPercentual) {
+        try {
+            Rectangle area = new Rectangle(x - largura/2, y - altura/2, largura, altura);
+            BufferedImage captura = robot.createScreenCapture(area);
+            return compararImagensBase64(captura, referenciaBase64, toleranciaPercentual);
+        } catch (Exception e) {
+            logger.log(Level.WARNING, "Erro ao verificar imagem com área/tolerância: " + e.getMessage(), e);
             return false;
         }
     }
@@ -242,9 +254,32 @@ public class VerificadorElementos {
         return texto.toString();
     }
     
-    private boolean compararImagens(BufferedImage img1, String referencia) {
-        // Implementação simplificada - em produção use algoritmos de comparação de imagens
-        return true; // Placeholder
+    private boolean compararImagensBase64(BufferedImage captura, String referenciaBase64, int toleranciaPercentual) {
+        try {
+            if (referenciaBase64 == null || referenciaBase64.isEmpty()) return false;
+            byte[] bytes = java.util.Base64.getDecoder().decode(referenciaBase64);
+            java.io.ByteArrayInputStream bais = new java.io.ByteArrayInputStream(bytes);
+            BufferedImage referencia = javax.imageio.ImageIO.read(bais);
+            if (referencia == null || captura == null) return false;
+            int w = Math.min(captura.getWidth(), referencia.getWidth());
+            int h = Math.min(captura.getHeight(), referencia.getHeight());
+            long totalPixels = (long) w * (long) h;
+            long diferentes = 0;
+            for (int yy = 0; yy < h; yy++) {
+                for (int xx = 0; xx < w; xx++) {
+                    int rgb1 = captura.getRGB(xx, yy);
+                    int rgb2 = referencia.getRGB(xx, yy);
+                    if (!coresSimilares(new Color(rgb1), new Color(rgb2), configuracao.getToleranciaCor())) {
+                        diferentes++;
+                    }
+                }
+            }
+            double percDiferenca = (diferentes * 100.0) / totalPixels;
+            return percDiferenca <= toleranciaPercentual;
+        } catch (Exception e) {
+            logger.log(Level.WARNING, "Erro comparando imagens Base64: " + e.getMessage(), e);
+            return false;
+        }
     }
     
     private Color parseColor(String corStr) {

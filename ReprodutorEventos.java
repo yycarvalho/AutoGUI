@@ -114,6 +114,23 @@ class ReprodutorEventos {
             
             // Verificação com timeout
             int timeout = acao.getTimeoutVerificacao();
+            // Se houver screenshot v2.0, usar verificação de imagem com área e tolerância
+            if (acao.getTipoVerificacao() == VerificadorElementos.TipoVerificacao.IMAGEM &&
+                acao.getScreenshotBase64() != null && !acao.getScreenshotBase64().isEmpty()) {
+                long inicio = System.currentTimeMillis();
+                long timeoutMs = timeout * 1000L;
+                while (System.currentTimeMillis() - inicio < timeoutMs) {
+                    boolean ok = verificador.verificarImagemAreaTolBase64(
+                        acao.getX(), acao.getY(),
+                        acao.getVerificacaoWidth(), acao.getVerificacaoHeight(),
+                        acao.getScreenshotBase64(), acao.getToleranciaComparacao()
+                    );
+                    if (ok) return true;
+                    Thread.sleep(verificador.getConfiguracao().getIntervaloVerificacaoMs());
+                }
+                return false;
+            }
+            
             return verificador.verificarElementoComTimeout(
                 acao.getX(), 
                 acao.getY(), 

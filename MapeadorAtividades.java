@@ -23,6 +23,7 @@ public class MapeadorAtividades extends JFrame implements
     private JButton btnPararReproducao;
     private JButton btnConfigurarVerificacao;
     private JButton btnAtivarVerificacao;
+    private JCheckBox chkCapturaAutomatica;
     
     private JTextArea areaLog;
     private JScrollPane scrollLog;
@@ -100,6 +101,12 @@ public class MapeadorAtividades extends JFrame implements
         btnAtivarVerificacao.setEnabled(false);
         gbc.gridx = 1; gbc.gridy = 2;
         painelControles.add(btnAtivarVerificacao, gbc);
+
+        // Checkbox Captura Automática (v2.0)
+        chkCapturaAutomatica = new JCheckBox("📸 Captura Automática (100x100)");
+        chkCapturaAutomatica.setSelected(false);
+        gbc.gridx = 2; gbc.gridy = 2;
+        painelControles.add(chkCapturaAutomatica, gbc);
         
         add(painelControles, BorderLayout.NORTH);
         
@@ -176,6 +183,12 @@ public class MapeadorAtividades extends JFrame implements
         btnConfigurarVerificacao.addActionListener(e -> configurarVerificacao());
         
         btnAtivarVerificacao.addActionListener(e -> ativarDesativarVerificacao());
+        
+        chkCapturaAutomatica.addActionListener(e -> {
+            boolean ativo = chkCapturaAutomatica.isSelected();
+            capturador.setCapturaAutomatica(ativo);
+            adicionarLog("Captura automática: " + (ativo ? "ATIVADA" : "DESATIVADA"));
+        });
         
         // Fechar aplicação adequadamente
         addWindowListener(new java.awt.event.WindowAdapter() {

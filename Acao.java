@@ -16,6 +16,11 @@ public class Acao {
     private VerificadorElementos.TipoVerificacao tipoVerificacao;
     private String valorEsperado;
     private int timeoutVerificacao = 60; // segundos
+    // v2.0 - Campos para verificação visual por screenshot
+    private int verificacaoWidth = 100;
+    private int verificacaoHeight = 100;
+    private String screenshotBase64; // imagem capturada em Base64
+    private int toleranciaComparacao = 10; // 0-100 (%)
     
     public enum TipoAcao {
         MOUSE_CLICK, MOUSE_MOVE, SCROLL, KEY_PRESS, KEY_RELEASE, KEY_TYPE
@@ -66,6 +71,23 @@ public class Acao {
     public int getTimeoutVerificacao() { return timeoutVerificacao; }
     public void setTimeoutVerificacao(int timeoutVerificacao) { this.timeoutVerificacao = timeoutVerificacao; }
     
+    // v2.0 getters/setters
+    public int getVerificacaoWidth() { return verificacaoWidth; }
+    public void setVerificacaoWidth(int verificacaoWidth) { this.verificacaoWidth = verificacaoWidth; }
+    
+    public int getVerificacaoHeight() { return verificacaoHeight; }
+    public void setVerificacaoHeight(int verificacaoHeight) { this.verificacaoHeight = verificacaoHeight; }
+    
+    public String getScreenshotBase64() { return screenshotBase64; }
+    public void setScreenshotBase64(String screenshotBase64) { this.screenshotBase64 = screenshotBase64; }
+    
+    public int getToleranciaComparacao() { return toleranciaComparacao; }
+    public void setToleranciaComparacao(int toleranciaComparacao) {
+        if (toleranciaComparacao < 0) toleranciaComparacao = 0;
+        if (toleranciaComparacao > 100) toleranciaComparacao = 100;
+        this.toleranciaComparacao = toleranciaComparacao;
+    }
+    
     public String getTimestampFormatted() {
         return timestamp.format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSS"));
     }
@@ -80,7 +102,11 @@ public class Acao {
             if (valorEsperado != null && !valorEsperado.isEmpty()) {
                 info += String.format(" = '%s'", valorEsperado);
             }
-            info += String.format(" timeout=%ds]", timeoutVerificacao);
+            info += String.format(" timeout=%ds", timeoutVerificacao);
+            if (screenshotBase64 != null && !screenshotBase64.isEmpty()) {
+                info += String.format(" area=%dx%d tol=%d%%", verificacaoWidth, verificacaoHeight, toleranciaComparacao);
+            }
+            info += "]";
         }
         
         return info;

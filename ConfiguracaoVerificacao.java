@@ -7,7 +7,7 @@ public class ConfiguracaoVerificacao {
     
     // Configurações de timeout
     private int timeoutPadrao = 60; // segundos
-    private int intervaloVerificacaoMs = 500; // milissegundos
+    private int intervaloVerificacaoMs = 250; // milissegundos (frequência de verificação padrão)
     
     // Configurações de tolerância
     private int toleranciaPosicao = 5; // pixels

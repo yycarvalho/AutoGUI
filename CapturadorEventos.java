@@ -40,6 +40,9 @@ class CapturadorEventos implements NativeKeyListener, NativeMouseListener,
     private static final int DISTANCIA_MAX_DUPOLO_CLique_PX = 2;
     private EventoListener listener;
     
+    // Captura automática de screenshots durante gravação (v2.0)
+    private boolean capturaAutomatica = false;
+    
     public interface EventoListener {
         void onNovoEvento(Acao acao);
     }
@@ -107,6 +110,28 @@ class CapturadorEventos implements NativeKeyListener, NativeMouseListener,
     
     private void adicionarAcao(Acao acao) {
         if (gravando) {
+            // Captura automática (100x100) quando habilitada e houver coordenadas
+            if (capturaAutomatica && acao.getX() >= 0 && acao.getY() >= 0 && acao.getTipo() == Acao.TipoAcao.MOUSE_CLICK) {
+                try {
+                    java.awt.Robot robot = new java.awt.Robot();
+                    int largura = 100;
+                    int altura = 100;
+                    java.awt.Rectangle area = new java.awt.Rectangle(acao.getX() - largura/2, acao.getY() - altura/2, largura, altura);
+                    java.awt.image.BufferedImage captura = robot.createScreenCapture(area);
+                    java.io.ByteArrayOutputStream baos = new java.io.ByteArrayOutputStream();
+                    javax.imageio.ImageIO.write(captura, "png", baos);
+                    String base64 = java.util.Base64.getEncoder().encodeToString(baos.toByteArray());
+                    acao.setScreenshotBase64(base64);
+                    acao.setVerificacaoWidth(largura);
+                    acao.setVerificacaoHeight(altura);
+                    acao.setVerificarElemento(true);
+                    acao.setTipoVerificacao(VerificadorElementos.TipoVerificacao.IMAGEM);
+                    acao.setToleranciaComparacao(10); // 10%
+                    acao.setTimeoutVerificacao(60);
+                } catch (Exception ex) {
+                    // silencioso para não interromper a captura
+                }
+            }
             acoes.add(acao);
             if (listener != null) {
                 listener.onNovoEvento(acao);
@@ -116,6 +141,15 @@ class CapturadorEventos implements NativeKeyListener, NativeMouseListener,
     
     public List<Acao> getAcoes() {
         return new ArrayList<>(acoes);
+    }
+    
+    // ===== CONFIGURAÇÃO (v2.0) =====
+    public boolean isCapturaAutomatica() {
+        return capturaAutomatica;
+    }
+    
+    public void setCapturaAutomatica(boolean capturaAutomatica) {
+        this.capturaAutomatica = capturaAutomatica;
     }
     
     // ============ MOUSE LISTENERS ============
