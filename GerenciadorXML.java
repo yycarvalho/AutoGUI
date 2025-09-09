@@ -40,6 +40,17 @@ class GerenciadorXML {
                 w.writeAttribute("y", String.valueOf(acao.getY()));
                 w.writeAttribute("timestamp", acao.getTimestampFormatted());
                 w.writeAttribute("delay", String.valueOf(acao.getDelay()));
+                
+                // Atributos de verificação
+                w.writeAttribute("verificarElemento", String.valueOf(acao.isVerificarElemento()));
+                if (acao.getTipoVerificacao() != null) {
+                    w.writeAttribute("tipoVerificacao", acao.getTipoVerificacao().name());
+                }
+                if (acao.getValorEsperado() != null) {
+                    w.writeAttribute("valorEsperado", acao.getValorEsperado());
+                }
+                w.writeAttribute("timeoutVerificacao", String.valueOf(acao.getTimeoutVerificacao()));
+                
                 w.writeEndElement();
             }
             w.writeEndElement(); // mapa
@@ -72,6 +83,29 @@ class GerenciadorXML {
                 
                 Acao acao = new Acao(id, tipo, detalhes, x, y);
                 acao.setDelay(delay);
+                
+                // Carregar configurações de verificação
+                boolean verificarElemento = Boolean.parseBoolean(element.getAttribute("verificarElemento"));
+                acao.setVerificarElemento(verificarElemento);
+                
+                if (verificarElemento) {
+                    String tipoVerificacaoStr = element.getAttribute("tipoVerificacao");
+                    if (tipoVerificacaoStr != null && !tipoVerificacaoStr.isEmpty()) {
+                        try {
+                            acao.setTipoVerificacao(VerificadorElementos.TipoVerificacao.valueOf(tipoVerificacaoStr));
+                        } catch (IllegalArgumentException e) {
+                            System.err.println("Tipo de verificação inválido: " + tipoVerificacaoStr);
+                        }
+                    }
+                    
+                    String valorEsperado = element.getAttribute("valorEsperado");
+                    if (valorEsperado != null && !valorEsperado.isEmpty()) {
+                        acao.setValorEsperado(valorEsperado);
+                    }
+                    
+                    int timeoutVerificacao = Integer.parseInt(element.getAttribute("timeoutVerificacao"));
+                    acao.setTimeoutVerificacao(timeoutVerificacao);
+                }
                 
                 String timestampStr = element.getAttribute("timestamp");
                 LocalDateTime timestamp = LocalDateTime.parse(timestampStr, 

@@ -21,6 +21,8 @@ public class MapeadorAtividades extends JFrame implements
     private JButton btnCarregarXML;
     private JButton btnReproduzir;
     private JButton btnPararReproducao;
+    private JButton btnConfigurarVerificacao;
+    private JButton btnAtivarVerificacao;
     
     private JTextArea areaLog;
     private JScrollPane scrollLog;
@@ -31,6 +33,9 @@ public class MapeadorAtividades extends JFrame implements
     private boolean gravando = false;
     private boolean reproduzindo = false;
     private List<Acao> acoesCarregadas;
+    private VerificadorElementos verificador;
+    private ConfiguracaoVerificacao configuracaoVerificacao;
+    private boolean verificacaoAtiva = false;
     
     public MapeadorAtividades() {
         initComponents();
@@ -84,6 +89,18 @@ public class MapeadorAtividades extends JFrame implements
         gbc.gridx = 2; gbc.gridy = 1;
         painelControles.add(btnPararReproducao, gbc);
         
+        // Botões de verificação
+        btnConfigurarVerificacao = new JButton("⚙️ Configurar Verificação");
+        btnConfigurarVerificacao.setPreferredSize(new Dimension(180, 30));
+        gbc.gridx = 0; gbc.gridy = 2;
+        painelControles.add(btnConfigurarVerificacao, gbc);
+        
+        btnAtivarVerificacao = new JButton("🔍 Ativar Verificação");
+        btnAtivarVerificacao.setPreferredSize(new Dimension(180, 30));
+        btnAtivarVerificacao.setEnabled(false);
+        gbc.gridx = 1; gbc.gridy = 2;
+        painelControles.add(btnAtivarVerificacao, gbc);
+        
         add(painelControles, BorderLayout.NORTH);
         
         // ===== PAINEL DE STATUS =====
@@ -128,7 +145,11 @@ public class MapeadorAtividades extends JFrame implements
             capturador = new CapturadorEventos();
             capturador.setEventoListener(this);
             
-            reprodutor = new ReprodutorEventos();
+            verificador = new VerificadorElementos();
+            configuracaoVerificacao = new ConfiguracaoVerificacao();
+            verificador.setConfiguracao(configuracaoVerificacao);
+            
+            reprodutor = new ReprodutorEventos(verificador);
             reprodutor.setReprodutorListener(this);
         } catch (Exception e) {
             JOptionPane.showMessageDialog(this, 
@@ -151,6 +172,10 @@ public class MapeadorAtividades extends JFrame implements
         btnReproduzir.addActionListener(e -> iniciarReproducao());
         
         btnPararReproducao.addActionListener(e -> pararReproducao());
+        
+        btnConfigurarVerificacao.addActionListener(e -> configurarVerificacao());
+        
+        btnAtivarVerificacao.addActionListener(e -> ativarDesativarVerificacao());
         
         // Fechar aplicação adequadamente
         addWindowListener(new java.awt.event.WindowAdapter() {
@@ -257,6 +282,7 @@ public class MapeadorAtividades extends JFrame implements
                 acoesCarregadas = GerenciadorXML.importarDeXML(nomeArquivo);
                 
                 btnReproduzir.setEnabled(true);
+                btnAtivarVerificacao.setEnabled(true);
                 
                 adicionarLog("=== ARQUIVO CARREGADO ===");
                 adicionarLog("Arquivo: " + nomeArquivo);
@@ -344,6 +370,38 @@ public class MapeadorAtividades extends JFrame implements
         adicionarLog("=== REPRODUÇÃO INTERROMPIDA ===");
     }
     
+    private void configurarVerificacao() {
+        try {
+            ConfiguracaoVerificacao novaConfig = ConfiguracaoVerificacaoDialog.mostrarDialogo(this, configuracaoVerificacao);
+            if (novaConfig != null) {
+                configuracaoVerificacao = novaConfig;
+                verificador.setConfiguracao(configuracaoVerificacao);
+                adicionarLog("=== CONFIGURAÇÃO DE VERIFICAÇÃO ATUALIZADA ===");
+                adicionarLog("Configuração: " + configuracaoVerificacao.toString());
+            }
+        } catch (Exception e) {
+            JOptionPane.showMessageDialog(this, 
+                "Erro ao configurar verificação: " + e.getMessage(), 
+                "Erro", JOptionPane.ERROR_MESSAGE);
+        }
+    }
+    
+    private void ativarDesativarVerificacao() {
+        verificacaoAtiva = !verificacaoAtiva;
+        
+        if (verificacaoAtiva) {
+            btnAtivarVerificacao.setText("🔍 Desativar Verificação");
+            btnAtivarVerificacao.setBackground(new Color(255, 200, 200));
+            adicionarLog("=== VERIFICAÇÃO DE ELEMENTOS ATIVADA ===");
+            adicionarLog("As ações agora incluirão verificação de elementos");
+        } else {
+            btnAtivarVerificacao.setText("🔍 Ativar Verificação");
+            btnAtivarVerificacao.setBackground(null);
+            adicionarLog("=== VERIFICAÇÃO DE ELEMENTOS DESATIVADA ===");
+            adicionarLog("As ações não incluirão verificação de elementos");
+        }
+    }
+    
     private void encerrarAplicacao() {
         try {
             if (capturador != null) {
@@ -364,14 +422,34 @@ public class MapeadorAtividades extends JFrame implements
     @Override
     public void onNovoEvento(Acao acao) {
         SwingUtilities.invokeLater(() -> {
+            // Configurar verificação se ativada
+            if (verificacaoAtiva) {
+                configurarVerificacaoParaAcao(acao);
+            }
+            
             List<Acao> acoes = capturador.getAcoes();
             lblContadorAcoes.setText("Ações capturadas: " + acoes.size());
             
-            // Mostrar apenas as últimas 3 ações no log para não sobrecarregar
-            //if (acoes.size() % 10 == 0 || acoes.size() <= 3) {
-                adicionarLog(String.format("[%d] %s", acoes.size(), acao.toString()));
-           // }
+            adicionarLog(String.format("[%d] %s", acoes.size(), acao.toString()));
         });
+    }
+    
+    /**
+     * Configura verificação para uma ação baseada no tipo
+     */
+    private void configurarVerificacaoParaAcao(Acao acao) {
+        if (acao.getTipo() == Acao.TipoAcao.MOUSE_CLICK) {
+            acao.setVerificarElemento(true);
+            acao.setTipoVerificacao(VerificadorElementos.TipoVerificacao.ELEMENTO_VISIVEL);
+            acao.setTimeoutVerificacao(configuracaoVerificacao.getTimeoutPadrao());
+            adicionarLog("Verificação configurada para clique em (" + acao.getX() + "," + acao.getY() + ")");
+        } else if (acao.getTipo() == Acao.TipoAcao.KEY_TYPE) {
+            acao.setVerificarElemento(true);
+            acao.setTipoVerificacao(VerificadorElementos.TipoVerificacao.TEXTO);
+            acao.setValorEsperado(acao.getDetalhes());
+            acao.setTimeoutVerificacao(configuracaoVerificacao.getTimeoutPadrao());
+            adicionarLog("Verificação de texto configurada para: " + acao.getDetalhes());
+        }
     }
     
     @Override

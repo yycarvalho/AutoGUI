@@ -11,6 +11,12 @@ public class Acao {
     private LocalDateTime timestamp;
     private long delay; // tempo em milissegundos até a próxima ação
     
+    // Configurações de verificação
+    private boolean verificarElemento = false;
+    private VerificadorElementos.TipoVerificacao tipoVerificacao;
+    private String valorEsperado;
+    private int timeoutVerificacao = 60; // segundos
+    
     public enum TipoAcao {
         MOUSE_CLICK, MOUSE_MOVE, SCROLL, KEY_PRESS, KEY_RELEASE, KEY_TYPE
     }
@@ -47,13 +53,36 @@ public class Acao {
     public long getDelay() { return delay; }
     public void setDelay(long delay) { this.delay = delay; }
     
+    // Getters e Setters para verificação
+    public boolean isVerificarElemento() { return verificarElemento; }
+    public void setVerificarElemento(boolean verificarElemento) { this.verificarElemento = verificarElemento; }
+    
+    public VerificadorElementos.TipoVerificacao getTipoVerificacao() { return tipoVerificacao; }
+    public void setTipoVerificacao(VerificadorElementos.TipoVerificacao tipoVerificacao) { this.tipoVerificacao = tipoVerificacao; }
+    
+    public String getValorEsperado() { return valorEsperado; }
+    public void setValorEsperado(String valorEsperado) { this.valorEsperado = valorEsperado; }
+    
+    public int getTimeoutVerificacao() { return timeoutVerificacao; }
+    public void setTimeoutVerificacao(int timeoutVerificacao) { this.timeoutVerificacao = timeoutVerificacao; }
+    
     public String getTimestampFormatted() {
         return timestamp.format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSS"));
     }
     
     @Override
     public String toString() {
-        return String.format("Acao[%d]: %s - %s (%d,%d) - %s", 
+        String info = String.format("Acao[%d]: %s - %s (%d,%d) - %s", 
             id, tipo, detalhes, x, y, getTimestampFormatted());
+        
+        if (verificarElemento) {
+            info += String.format(" [VERIFICAR: %s", tipoVerificacao);
+            if (valorEsperado != null && !valorEsperado.isEmpty()) {
+                info += String.format(" = '%s'", valorEsperado);
+            }
+            info += String.format(" timeout=%ds]", timeoutVerificacao);
+        }
+        
+        return info;
     }
 }
