@@ -12,6 +12,7 @@ class ReprodutorEventos {
     private Robot robot;
     private boolean reproduzindo;
     private ReprodutorListener listener;
+    private VerificadorElementos verificador;
     
     public interface ReprodutorListener {
         void onAcaoExecutada(Acao acao, int progresso, int total);
@@ -22,10 +23,25 @@ class ReprodutorEventos {
     public ReprodutorEventos() throws Exception {
         this.robot = new Robot();
         this.reproduzindo = false;
+        this.verificador = new VerificadorElementos();
+    }
+    
+    public ReprodutorEventos(VerificadorElementos verificador) throws Exception {
+        this.robot = new Robot();
+        this.reproduzindo = false;
+        this.verificador = verificador != null ? verificador : new VerificadorElementos();
     }
     
     public void setReprodutorListener(ReprodutorListener listener) {
         this.listener = listener;
+    }
+    
+    public VerificadorElementos getVerificador() {
+        return verificador;
+    }
+    
+    public void setVerificador(VerificadorElementos verificador) {
+        this.verificador = verificador;
     }
     
     public CompletableFuture<Void> reproduzirAcoes(List<Acao> acoes) {
@@ -69,6 +85,14 @@ class ReprodutorEventos {
     private void executarAcao(Acao acao) throws InterruptedException {
     	if(acao.getDelay() == 0)
     		return;
+    	
+    	// Verificar elemento antes da execução se configurado
+    	if (acao.isVerificarElemento()) {
+    		if (!verificarElementoAntesExecucao(acao)) {
+    			throw new InterruptedException("Elemento não encontrado: " + acao.toString());
+    		}
+    	}
+    	
         switch (acao.getTipo()) {
             case MOUSE_CLICK -> executarClickMouse(acao);
             case MOUSE_MOVE -> executarMovimentoMouse(acao);
@@ -76,6 +100,31 @@ class ReprodutorEventos {
             case KEY_PRESS -> executarTeclaPressionada(acao);
             case KEY_RELEASE -> executarTeclaLiberada(acao);
             case KEY_TYPE -> executarTeclaDigitada(acao);
+        }
+    }
+    
+    /**
+     * Verifica se o elemento está presente antes da execução da ação
+     */
+    private boolean verificarElementoAntesExecucao(Acao acao) {
+        try {
+            if (acao.getTipoVerificacao() == null) {
+                return true; // Sem verificação específica
+            }
+            
+            // Verificação com timeout
+            int timeout = acao.getTimeoutVerificacao();
+            return verificador.verificarElementoComTimeout(
+                acao.getX(), 
+                acao.getY(), 
+                acao.getTipoVerificacao(), 
+                acao.getValorEsperado(), 
+                timeout
+            ).get(); // Aguarda resultado
+            
+        } catch (Exception e) {
+            System.err.println("Erro durante verificação de elemento: " + e.getMessage());
+            return false;
         }
     }
     
