@@ -6,6 +6,8 @@ import java.awt.event.KeyEvent;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
+import com.github.kwhat.jnativehook.keyboard.NativeKeyEvent;
+
 class ReprodutorEventos {
     private Robot robot;
     private boolean reproduzindo;

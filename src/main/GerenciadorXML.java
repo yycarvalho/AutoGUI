@@ -2,6 +2,8 @@ package main;
 
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
+import javax.xml.stream.XMLOutputFactory;
+import javax.xml.stream.XMLStreamWriter;
 import javax.xml.transform.Transformer;
 import javax.xml.transform.TransformerFactory;
 import javax.xml.transform.dom.DOMSource;
@@ -10,7 +12,11 @@ import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
+import java.io.BufferedOutputStream;
 import java.io.File;
+import java.io.FileOutputStream;
+import java.io.OutputStreamWriter;
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -19,33 +25,28 @@ import java.util.List;
 class GerenciadorXML {
     
     public static void exportarParaXML(List<Acao> acoes, String nomeArquivo) throws Exception {
-        DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
-        DocumentBuilder builder = factory.newDocumentBuilder();
-        Document document = builder.newDocument();
-        
-        Element root = document.createElement("mapa");
-        document.appendChild(root);
-        
-        for (Acao acao : acoes) {
-            Element acaoElement = document.createElement("acao");
-            
-            acaoElement.setAttribute("id", String.valueOf(acao.getId()));
-            acaoElement.setAttribute("tipo", acao.getTipo().name());
-            acaoElement.setAttribute("detalhes", acao.getDetalhes());
-            acaoElement.setAttribute("x", String.valueOf(acao.getX()));
-            acaoElement.setAttribute("y", String.valueOf(acao.getY()));
-            acaoElement.setAttribute("timestamp", acao.getTimestampFormatted());
-            acaoElement.setAttribute("delay", String.valueOf(acao.getDelay()));
-            
-            root.appendChild(acaoElement);
+        // Escrita em streaming para suportar arquivos grandes sem esgotar memória
+        XMLOutputFactory xof = XMLOutputFactory.newInstance();
+        try (BufferedOutputStream bos = new BufferedOutputStream(new FileOutputStream(new File(nomeArquivo)))) {
+            XMLStreamWriter w = xof.createXMLStreamWriter(new OutputStreamWriter(bos, StandardCharsets.UTF_8));
+            w.writeStartDocument("UTF-8", "1.0");
+            w.writeStartElement("mapa");
+            for (Acao acao : acoes) {
+                w.writeStartElement("acao");
+                w.writeAttribute("id", String.valueOf(acao.getId()));
+                w.writeAttribute("tipo", acao.getTipo().name());
+                w.writeAttribute("detalhes", acao.getDetalhes());
+                w.writeAttribute("x", String.valueOf(acao.getX()));
+                w.writeAttribute("y", String.valueOf(acao.getY()));
+                w.writeAttribute("timestamp", acao.getTimestampFormatted());
+                w.writeAttribute("delay", String.valueOf(acao.getDelay()));
+                w.writeEndElement();
+            }
+            w.writeEndElement(); // mapa
+            w.writeEndDocument();
+            w.flush();
+            w.close();
         }
-        
-        TransformerFactory transformerFactory = TransformerFactory.newInstance();
-        Transformer transformer = transformerFactory.newTransformer();
-        transformer.setOutputProperty(javax.xml.transform.OutputKeys.INDENT, "yes");
-        DOMSource source = new DOMSource(document);
-        StreamResult result = new StreamResult(new File(nomeArquivo));
-        transformer.transform(source, result);
     }
     
     public static List<Acao> importarDeXML(String nomeArquivo) throws Exception {

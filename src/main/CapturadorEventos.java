@@ -27,6 +27,17 @@ class CapturadorEventos implements NativeKeyListener, NativeMouseListener,
     private boolean gravando;
     private int contadorId;
     private boolean teclasPressionadas[];
+    private long ultimoMovimentoTimestampMs;
+    private static final long INTERVALO_MIN_MOVIMENTO_MS = 100;
+    
+    // Controle de clicks para detectar duplo-clique e suportar botão direito
+    private long ultimoClickEsqMs;
+    private long ultimoClickDirMs;
+    private long ultimoClickMeioMs;
+    private int ultimoClickX;
+    private int ultimoClickY;
+    private static final long INTERVALO_DUPOLO_CLique_MS = 400;
+    private static final int DISTANCIA_MAX_DUPOLO_CLique_PX = 3;
     private EventoListener listener;
     
     public interface EventoListener {
@@ -38,6 +49,12 @@ class CapturadorEventos implements NativeKeyListener, NativeMouseListener,
         this.gravando = false;
         this.contadorId = 1;
         this.teclasPressionadas = new boolean[256];
+        this.ultimoMovimentoTimestampMs = 0L;
+        this.ultimoClickEsqMs = 0L;
+        this.ultimoClickDirMs = 0L;
+        this.ultimoClickMeioMs = 0L;
+        this.ultimoClickX = -1;
+        this.ultimoClickY = -1;
         
     }
     
@@ -105,34 +122,55 @@ class CapturadorEventos implements NativeKeyListener, NativeMouseListener,
     
     @Override
     public void nativeMouseClicked(NativeMouseEvent e) {
+        // Ignorado: iremos construir clicks com base em pressed/released para maior confiabilidade
+    }
+    
+    @Override
+    public void nativeMousePressed(NativeMouseEvent e) {
+        // Nada a fazer no press; aguardamos o release para consolidar o(s) clique(s)
+    }
+    
+    @Override
+    public void nativeMouseReleased(NativeMouseEvent e) {
         String botao = switch (e.getButton()) {
             case NativeMouseEvent.BUTTON1 -> "ESQUERDO";
-            case NativeMouseEvent.BUTTON2 -> "MEIO";
-            case NativeMouseEvent.BUTTON3 -> "DIREITO";
+            case NativeMouseEvent.BUTTON3 -> "MEIO";
+            case NativeMouseEvent.BUTTON2 -> "DIREITO";
             default -> "DESCONHECIDO";
         };
-        
-        String detalhes = String.format("%s_%d_CLICKS", botao, e.getClickCount());
+        long agora = System.currentTimeMillis();
+        long ultimoClickMs;
+        switch (e.getButton()) {
+            case NativeMouseEvent.BUTTON1 -> ultimoClickMs = ultimoClickEsqMs;
+            case NativeMouseEvent.BUTTON3 -> ultimoClickMs = ultimoClickMeioMs;
+            case NativeMouseEvent.BUTTON2 -> ultimoClickMs = ultimoClickDirMs;
+            default -> ultimoClickMs = 0L;
+        }
+        int clicks = 1;
+        if (ultimoClickMs > 0
+                && (agora - ultimoClickMs) <= INTERVALO_DUPOLO_CLique_MS
+                && distancia(e.getX(), e.getY(), ultimoClickX, ultimoClickY) <= DISTANCIA_MAX_DUPOLO_CLique_PX) {
+            clicks = 2;
+        }
+        // Atualizar estado do último click para o botão correspondente
+        switch (e.getButton()) {
+            case NativeMouseEvent.BUTTON1 -> ultimoClickEsqMs = agora;
+            case NativeMouseEvent.BUTTON3 -> ultimoClickMeioMs = agora;
+            case NativeMouseEvent.BUTTON2 -> ultimoClickDirMs = agora;
+            default -> { /* noop */ }
+        }
+        ultimoClickX = e.getX();
+        ultimoClickY = e.getY();
+        String detalhes = String.format("%s_%d", botao, clicks);
         Acao acao = new Acao(contadorId++, Acao.TipoAcao.MOUSE_CLICK, detalhes, e.getX(), e.getY());
         adicionarAcao(acao);
     }
     
     @Override
-    public void nativeMousePressed(NativeMouseEvent e) {
-        // Implementação específica se necessário
-    }
-    
-    @Override
-    public void nativeMouseReleased(NativeMouseEvent e) {
-        // Implementação específica se necessário
-    }
-    
-    @Override
     public void nativeMouseMoved(NativeMouseEvent e) {
-        // Filtrar movimentos muito frequentes para evitar spam
-        if (acoes.isEmpty() || 
-            java.time.Duration.between(acoes.get(acoes.size()-1).getTimestamp(), 
-                                     java.time.LocalDateTime.now()).toMillis() > 100) {
+        long agora = System.currentTimeMillis();
+        if ((agora - ultimoMovimentoTimestampMs) >= INTERVALO_MIN_MOVIMENTO_MS) {
+            ultimoMovimentoTimestampMs = agora;
             Acao acao = new Acao(contadorId++, Acao.TipoAcao.MOUSE_MOVE, "MOVE", e.getX(), e.getY());
             adicionarAcao(acao);
         }
@@ -156,17 +194,28 @@ class CapturadorEventos implements NativeKeyListener, NativeMouseListener,
     
     @Override
     public void nativeKeyPressed(NativeKeyEvent e) {
-        String tecla = NativeKeyEvent.getKeyText(e.getKeyCode());
+        int keyCode = e.getKeyCode();
+        if (keyCode >= 0 && keyCode < teclasPressionadas.length) {
+            if (teclasPressionadas[keyCode]) {
+                return; // já registrada como pressionada, evita repetição (auto-repeat)
+            }
+            teclasPressionadas[keyCode] = true;
+        }
+        
+        String tecla = NativeKeyEvent.getKeyText(keyCode);
         String modificadores = getModificadores(e);
         String detalhes = modificadores.isEmpty() ? tecla : modificadores + "+" + tecla;
-        
         Acao acao = new Acao(contadorId++, Acao.TipoAcao.KEY_PRESS, detalhes, -1, -1);
         adicionarAcao(acao);
     }
     
     @Override
     public void nativeKeyReleased(NativeKeyEvent e) {
-        String tecla = NativeKeyEvent.getKeyText(e.getKeyCode());
+        int keyCode = e.getKeyCode();
+        if (keyCode >= 0 && keyCode < teclasPressionadas.length) {
+            teclasPressionadas[keyCode] = false;
+        }
+        String tecla = NativeKeyEvent.getKeyText(keyCode);
         String modificadores = getModificadores(e);
         String detalhes = modificadores.isEmpty() ? tecla : modificadores + "+" + tecla;
         
@@ -176,11 +225,7 @@ class CapturadorEventos implements NativeKeyListener, NativeMouseListener,
     
     @Override
     public void nativeKeyTyped(NativeKeyEvent e) {
-        if (e.getKeyChar() != NativeKeyEvent.CHAR_UNDEFINED) {
-            String detalhes = String.valueOf(e.getKeyChar());
-            Acao acao = new Acao(contadorId++, Acao.TipoAcao.KEY_TYPE, detalhes, -1, -1);
-            adicionarAcao(acao);
-        }
+        // Desabilitado para evitar duplicidade com KEY_PRESS/KEY_RELEASE
     }
     
     private String getModificadores(NativeKeyEvent e) {
@@ -190,5 +235,11 @@ class CapturadorEventos implements NativeKeyListener, NativeMouseListener,
         if ((e.getModifiers() & NativeKeyEvent.SHIFT_MASK) != 0) mods.add("SHIFT");
         if ((e.getModifiers() & NativeKeyEvent.META_MASK) != 0) mods.add("META");
         return String.join("+", mods);
+    }
+
+    private int distancia(int x1, int y1, int x2, int y2) {
+        int dx = x1 - x2;
+        int dy = y1 - y2;
+        return (int) Math.sqrt(dx * dx + dy * dy);
     }
 }
