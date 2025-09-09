@@ -36,7 +36,7 @@ class ReprodutorEventos {
                 for (int i = 0; i < acoes.size() && reproduzindo; i++) {
                     Acao acao = acoes.get(i);
                     
-                    // Aguardar delay antes da execução
+                    // Aguardar delay antes da execuÃ§Ã£o
                     if (acao.getDelay() > 0) {
                         Thread.sleep(acao.getDelay());
                     }
@@ -54,7 +54,7 @@ class ReprodutorEventos {
                 
             } catch (Exception e) {
                 if (listener != null) {
-                    listener.onErro("Erro durante reprodução: " + e.getMessage());
+                    listener.onErro("Erro durante reproduÃ§Ã£o: " + e.getMessage());
                 }
             } finally {
                 reproduzindo = false;
@@ -183,50 +183,79 @@ class ReprodutorEventos {
         }
     }
     
+    /**
+     * Converte string da tecla para keyCode do Java AWT
+     */
     private int getKeyCode(String tecla) {
+        // Para caracteres únicos, usar o próprio caractere
+        if (tecla.length() == 1) {
+            char c = tecla.charAt(0);
+            
+            // Letras (converter para maiúscula para o keyCode)
+            if (c >= 'a' && c <= 'z') {
+                return KeyEvent.VK_A + (c - 'a');
+            }
+            if (c >= 'A' && c <= 'Z') {
+                return KeyEvent.VK_A + (c - 'A');
+            }
+            
+            // Números
+            if (c >= '0' && c <= '9') {
+                return KeyEvent.VK_0 + (c - '0');
+            }
+            
+            // Símbolos e caracteres especiais
+            switch (c) {
+                case ' ' -> { return KeyEvent.VK_SPACE; }
+                case '-' -> { return KeyEvent.VK_MINUS; }
+                case '=' -> { return KeyEvent.VK_EQUALS; }
+                case '[' -> { return KeyEvent.VK_OPEN_BRACKET; }
+                case ']' -> { return KeyEvent.VK_CLOSE_BRACKET; }
+                case '\\' -> { return KeyEvent.VK_BACK_SLASH; }
+                case ';' -> { return KeyEvent.VK_SEMICOLON; }
+                case '\'' -> { return KeyEvent.VK_QUOTE; }
+                case ',' -> { return KeyEvent.VK_COMMA; }
+                case '.' -> { return KeyEvent.VK_PERIOD; }
+                case '/' -> { return KeyEvent.VK_SLASH; }
+                case '`' -> { return KeyEvent.VK_BACK_QUOTE; }
+                case '*' -> { return KeyEvent.VK_MULTIPLY; }
+                case '+' -> { return KeyEvent.VK_PLUS; }
+                
+                // Caracteres acentuados e especiais do português
+                case 'ç' -> { return KeyEvent.VK_C; } // Será tratado com combinação
+                case 'Ç' -> { return KeyEvent.VK_C; }
+                case 'á', 'à', 'ã', 'â' -> { return KeyEvent.VK_A; }
+                case 'Á', 'À', 'Ã', 'Â' -> { return KeyEvent.VK_A; }
+                case 'é', 'ê' -> { return KeyEvent.VK_E; }
+                case 'É', 'Ê' -> { return KeyEvent.VK_E; }
+                case 'í' -> { return KeyEvent.VK_I; }
+                case 'Í' -> { return KeyEvent.VK_I; }
+                case 'ó', 'ô', 'õ' -> { return KeyEvent.VK_O; }
+                case 'Ó', 'Ô', 'Õ' -> { return KeyEvent.VK_O; }
+                case 'ú' -> { return KeyEvent.VK_U; }
+                case 'Ú' -> { return KeyEvent.VK_U; }
+                case '~' -> { return KeyEvent.VK_DEAD_TILDE; }
+                case '?' -> { return KeyEvent.VK_SLASH; } // Com shift
+                default -> { return KeyEvent.getExtendedKeyCodeForChar(c); }
+            }
+        }
+        
+        // Para nomes de teclas especiais
         return switch (tecla.toUpperCase()) {
-            case "A" -> KeyEvent.VK_A;
-            case "B" -> KeyEvent.VK_B;
-            case "C" -> KeyEvent.VK_C;
-            case "D" -> KeyEvent.VK_D;
-            case "E" -> KeyEvent.VK_E;
-            case "F" -> KeyEvent.VK_F;
-            case "G" -> KeyEvent.VK_G;
-            case "H" -> KeyEvent.VK_H;
-            case "I" -> KeyEvent.VK_I;
-            case "J" -> KeyEvent.VK_J;
-            case "K" -> KeyEvent.VK_K;
-            case "L" -> KeyEvent.VK_L;
-            case "M" -> KeyEvent.VK_M;
-            case "N" -> KeyEvent.VK_N;
-            case "O" -> KeyEvent.VK_O;
-            case "P" -> KeyEvent.VK_P;
-            case "Q" -> KeyEvent.VK_Q;
-            case "R" -> KeyEvent.VK_R;
-            case "S" -> KeyEvent.VK_S;
-            case "T" -> KeyEvent.VK_T;
-            case "U" -> KeyEvent.VK_U;
-            case "V" -> KeyEvent.VK_V;
-            case "W" -> KeyEvent.VK_W;
-            case "X" -> KeyEvent.VK_X;
-            case "Y" -> KeyEvent.VK_Y;
-            case "Z" -> KeyEvent.VK_Z;
-            case "0" -> KeyEvent.VK_0;
-            case "1" -> KeyEvent.VK_1;
-            case "2" -> KeyEvent.VK_2;
-            case "3" -> KeyEvent.VK_3;
-            case "4" -> KeyEvent.VK_4;
-            case "5" -> KeyEvent.VK_5;
-            case "6" -> KeyEvent.VK_6;
-            case "7" -> KeyEvent.VK_7;
-            case "8" -> KeyEvent.VK_8;
-            case "9" -> KeyEvent.VK_9;
-            case "SPACE" -> KeyEvent.VK_SPACE;
             case "ENTER" -> KeyEvent.VK_ENTER;
             case "TAB" -> KeyEvent.VK_TAB;
             case "ESCAPE" -> KeyEvent.VK_ESCAPE;
             case "BACKSPACE" -> KeyEvent.VK_BACK_SPACE;
             case "DELETE" -> KeyEvent.VK_DELETE;
+            case "INSERT" -> KeyEvent.VK_INSERT;
+            case "HOME" -> KeyEvent.VK_HOME;
+            case "END" -> KeyEvent.VK_END;
+            case "PAGE_UP" -> KeyEvent.VK_PAGE_UP;
+            case "PAGE_DOWN" -> KeyEvent.VK_PAGE_DOWN;
+            case "UP" -> KeyEvent.VK_UP;
+            case "DOWN" -> KeyEvent.VK_DOWN;
+            case "LEFT" -> KeyEvent.VK_LEFT;
+            case "RIGHT" -> KeyEvent.VK_RIGHT;
             case "F1" -> KeyEvent.VK_F1;
             case "F2" -> KeyEvent.VK_F2;
             case "F3" -> KeyEvent.VK_F3;
@@ -239,6 +268,11 @@ class ReprodutorEventos {
             case "F10" -> KeyEvent.VK_F10;
             case "F11" -> KeyEvent.VK_F11;
             case "F12" -> KeyEvent.VK_F12;
+            case "CAPS_LOCK" -> KeyEvent.VK_CAPS_LOCK;
+            case "NUM_LOCK" -> KeyEvent.VK_NUM_LOCK;
+            case "SCROLL_LOCK" -> KeyEvent.VK_SCROLL_LOCK;
+            case "PRINT_SCREEN" -> KeyEvent.VK_PRINTSCREEN;
+            case "PAUSE" -> KeyEvent.VK_PAUSE;
             default -> -1;
         };
     }

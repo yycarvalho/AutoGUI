@@ -30,7 +30,7 @@ class CapturadorEventos implements NativeKeyListener, NativeMouseListener,
     private long ultimoMovimentoTimestampMs;
     private static final long INTERVALO_MIN_MOVIMENTO_MS = 100;
     
-    // Controle de clicks para detectar duplo-clique e suportar botão direito
+    // Controle de clicks para detectar duplo-clique e suportar botÃ£o direito
     private long ultimoClickEsqMs;
     private long ultimoClickDirMs;
     private long ultimoClickMeioMs;
@@ -152,7 +152,7 @@ class CapturadorEventos implements NativeKeyListener, NativeMouseListener,
                 && distancia(e.getX(), e.getY(), ultimoClickX, ultimoClickY) <= DISTANCIA_MAX_DUPOLO_CLique_PX) {
             clicks = 2;
         }
-        // Atualizar estado do último click para o botão correspondente
+        // Atualizar estado do Ãºltimo click para o botÃ£o correspondente
         switch (e.getButton()) {
             case NativeMouseEvent.BUTTON1 -> ultimoClickEsqMs = agora;
             case NativeMouseEvent.BUTTON3 -> ultimoClickMeioMs = agora;
@@ -197,12 +197,12 @@ class CapturadorEventos implements NativeKeyListener, NativeMouseListener,
         int keyCode = e.getKeyCode();
         if (keyCode >= 0 && keyCode < teclasPressionadas.length) {
             if (teclasPressionadas[keyCode]) {
-                return; // já registrada como pressionada, evita repetição (auto-repeat)
+                return; // jÃ¡ registrada como pressionada, evita repetiÃ§Ã£o (auto-repeat)
             }
             teclasPressionadas[keyCode] = true;
         }
         
-        String tecla = NativeKeyEvent.getKeyText(keyCode);
+        String tecla = obterTeclaReal(keyCode);
         String modificadores = getModificadores(e);
         String detalhes = modificadores.isEmpty() ? tecla : modificadores + "+" + tecla;
         Acao acao = new Acao(contadorId++, Acao.TipoAcao.KEY_PRESS, detalhes, -1, -1);
@@ -215,7 +215,7 @@ class CapturadorEventos implements NativeKeyListener, NativeMouseListener,
         if (keyCode >= 0 && keyCode < teclasPressionadas.length) {
             teclasPressionadas[keyCode] = false;
         }
-        String tecla = NativeKeyEvent.getKeyText(keyCode);
+        String tecla = obterTeclaReal(keyCode);
         String modificadores = getModificadores(e);
         String detalhes = modificadores.isEmpty() ? tecla : modificadores + "+" + tecla;
         
@@ -241,5 +241,117 @@ class CapturadorEventos implements NativeKeyListener, NativeMouseListener,
         int dx = x1 - x2;
         int dy = y1 - y2;
         return (int) Math.sqrt(dx * dx + dy * dy);
+    }
+    
+    /**
+     * Converte keyCode do NativeKeyEvent para representação real da tecla
+     */
+    private String obterTeclaReal(int keyCode) {
+        // Mapeamento direto dos keyCodes para caracteres reais
+        return switch (keyCode) {
+            // Letras
+            case NativeKeyEvent.VC_A -> "a";
+            case NativeKeyEvent.VC_B -> "b";
+            case NativeKeyEvent.VC_C -> "c";
+            case NativeKeyEvent.VC_D -> "d";
+            case NativeKeyEvent.VC_E -> "e";
+            case NativeKeyEvent.VC_F -> "f";
+            case NativeKeyEvent.VC_G -> "g";
+            case NativeKeyEvent.VC_H -> "h";
+            case NativeKeyEvent.VC_I -> "i";
+            case NativeKeyEvent.VC_J -> "j";
+            case NativeKeyEvent.VC_K -> "k";
+            case NativeKeyEvent.VC_L -> "l";
+            case NativeKeyEvent.VC_M -> "m";
+            case NativeKeyEvent.VC_N -> "n";
+            case NativeKeyEvent.VC_O -> "o";
+            case NativeKeyEvent.VC_P -> "p";
+            case NativeKeyEvent.VC_Q -> "q";
+            case NativeKeyEvent.VC_R -> "r";
+            case NativeKeyEvent.VC_S -> "s";
+            case NativeKeyEvent.VC_T -> "t";
+            case NativeKeyEvent.VC_U -> "u";
+            case NativeKeyEvent.VC_V -> "v";
+            case NativeKeyEvent.VC_W -> "w";
+            case NativeKeyEvent.VC_X -> "x";
+            case NativeKeyEvent.VC_Y -> "y";
+            case NativeKeyEvent.VC_Z -> "z";
+            
+            // Números
+            case NativeKeyEvent.VC_0 -> "0";
+            case NativeKeyEvent.VC_1 -> "1";
+            case NativeKeyEvent.VC_2 -> "2";
+            case NativeKeyEvent.VC_3 -> "3";
+            case NativeKeyEvent.VC_4 -> "4";
+            case NativeKeyEvent.VC_5 -> "5";
+            case NativeKeyEvent.VC_6 -> "6";
+            case NativeKeyEvent.VC_7 -> "7";
+            case NativeKeyEvent.VC_8 -> "8";
+            case NativeKeyEvent.VC_9 -> "9";
+            
+            // Símbolos e caracteres especiais
+            case NativeKeyEvent.VC_SPACE -> " ";
+            case NativeKeyEvent.VC_MINUS -> "-";
+            case NativeKeyEvent.VC_EQUALS -> "=";
+            case NativeKeyEvent.VC_OPEN_BRACKET -> "[";
+            case NativeKeyEvent.VC_CLOSE_BRACKET -> "]";
+            case NativeKeyEvent.VC_BACK_SLASH -> "\\";
+            case NativeKeyEvent.VC_SEMICOLON -> ";";
+            case NativeKeyEvent.VC_QUOTE -> "'";
+            case NativeKeyEvent.VC_COMMA -> ",";
+            case NativeKeyEvent.VC_PERIOD -> ".";
+            case NativeKeyEvent.VC_SLASH -> "/";
+            case NativeKeyEvent.VC_BACKQUOTE -> "`";
+            
+            // Teclas especiais que mantemos como nomes
+            case NativeKeyEvent.VC_ENTER -> "ENTER";
+            case NativeKeyEvent.VC_TAB -> "TAB";
+            case NativeKeyEvent.VC_BACKSPACE -> "BACKSPACE";
+            case NativeKeyEvent.VC_DELETE -> "DELETE";
+            case NativeKeyEvent.VC_ESCAPE -> "ESCAPE";
+            case NativeKeyEvent.VC_INSERT -> "INSERT";
+            case NativeKeyEvent.VC_HOME -> "HOME";
+            case NativeKeyEvent.VC_END -> "END";
+            case NativeKeyEvent.VC_PAGE_UP -> "PAGE_UP";
+            case NativeKeyEvent.VC_PAGE_DOWN -> "PAGE_DOWN";
+            case NativeKeyEvent.VC_UP -> "UP";
+            case NativeKeyEvent.VC_DOWN -> "DOWN";
+            case NativeKeyEvent.VC_LEFT -> "LEFT";
+            case NativeKeyEvent.VC_RIGHT -> "RIGHT";
+            
+            // Teclas de função
+            case NativeKeyEvent.VC_F1 -> "F1";
+            case NativeKeyEvent.VC_F2 -> "F2";
+            case NativeKeyEvent.VC_F3 -> "F3";
+            case NativeKeyEvent.VC_F4 -> "F4";
+            case NativeKeyEvent.VC_F5 -> "F5";
+            case NativeKeyEvent.VC_F6 -> "F6";
+            case NativeKeyEvent.VC_F7 -> "F7";
+            case NativeKeyEvent.VC_F8 -> "F8";
+            case NativeKeyEvent.VC_F9 -> "F9";
+            case NativeKeyEvent.VC_F10 -> "F10";
+            case NativeKeyEvent.VC_F11 -> "F11";
+            case NativeKeyEvent.VC_F12 -> "F12";
+            
+         // Numpad - valores corretos
+            case 96 -> "0";      // Numpad 0
+            case 97 -> "1";      // Numpad 1
+            case 98 -> "2";      // Numpad 2
+            case 99 -> "3";      // Numpad 3
+            case 100 -> "4";     // Numpad 4
+            case 101 -> "5";     // Numpad 5
+            case 102 -> "6";     // Numpad 6
+            case 103 -> "7";     // Numpad 7
+            case 104 -> "8";     // Numpad 8
+            case 105 -> "9";     // Numpad 9
+            case 106 -> "*";     // Numpad *
+            case 107 -> "+";     // Numpad +
+            case 109 -> "-";     // Numpad -
+            case 110 -> ".";     // Numpad .
+            case 111 -> "/";     // Numpad /
+            
+            // Caso não seja mapeado, usar o texto original
+            default -> NativeKeyEvent.getKeyText(keyCode);
+        };
     }
 }
