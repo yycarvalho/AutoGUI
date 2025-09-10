@@ -6,6 +6,12 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.logging.Logger;
+import java.awt.Rectangle;
+import java.awt.image.BufferedImage;
+import java.util.Base64;
+import javax.imageio.ImageIO;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 
 import com.github.kwhat.jnativehook.GlobalScreen;
 import com.github.kwhat.jnativehook.NativeHookException;
@@ -16,6 +22,9 @@ import com.github.kwhat.jnativehook.mouse.NativeMouseListener;
 import com.github.kwhat.jnativehook.mouse.NativeMouseMotionListener;
 import com.github.kwhat.jnativehook.mouse.NativeMouseWheelEvent;
 import com.github.kwhat.jnativehook.mouse.NativeMouseWheelListener;
+
+import main.interfaces.ScreenCaptureProvider;
+import main.impl.RobotScreenCaptureProvider;
 
 
 
@@ -40,6 +49,12 @@ class CapturadorEventos implements NativeKeyListener, NativeMouseListener,
     private static final int DISTANCIA_MAX_DUPOLO_CLique_PX = 2;
     private EventoListener listener;
     
+    // Captura de tela e contexto visual
+    private ScreenCaptureProvider screenCaptureProvider;
+    private static final int PIXEL_SAMPLE_SIZE = 21; // 21x21 pixels
+    private static final int SCREENSHOT_SIZE = 100; // 100x100 pixels
+    private boolean captureVisualData = true;
+    
     public interface EventoListener {
         void onNovoEvento(Acao acao);
     }
@@ -56,6 +71,13 @@ class CapturadorEventos implements NativeKeyListener, NativeMouseListener,
         this.ultimoClickX = -1;
         this.ultimoClickY = -1;
         
+        // Inicializar captura de tela
+        try {
+            this.screenCaptureProvider = new RobotScreenCaptureProvider();
+        } catch (Exception e) {
+            System.err.println("Erro ao inicializar captura de tela: " + e.getMessage());
+            this.screenCaptureProvider = null;
+        }
     }
     
     public void setEventoListener(EventoListener listener) {
@@ -162,7 +184,18 @@ class CapturadorEventos implements NativeKeyListener, NativeMouseListener,
         ultimoClickX = e.getX();
         ultimoClickY = e.getY();
         String detalhes = String.format("%s_%d", botao, clicks);
+        
+        // Criar ação com coordenadas absolutas e relativas
         Acao acao = new Acao(contadorId++, Acao.TipoAcao.MOUSE_CLICK, detalhes, e.getX(), e.getY());
+        
+        // Capturar metadados da janela e dados visuais
+        if (screenCaptureProvider != null) {
+            captureWindowMetadata(acao);
+            if (captureVisualData) {
+                captureVisualData(acao, e.getX(), e.getY());
+            }
+        }
+        
         adicionarAcao(acao);
     }
     
@@ -353,5 +386,77 @@ class CapturadorEventos implements NativeKeyListener, NativeMouseListener,
             // Caso não seja mapeado, usar o texto original
             default -> NativeKeyEvent.getKeyText(keyCode);
         };
+    }
+    
+    /**
+     * Captura metadados da janela ativa
+     */
+    private void captureWindowMetadata(Acao acao) {
+        try {
+            acao.setWindowTitle(screenCaptureProvider.getActiveWindowTitle());
+            acao.setWindowPid(screenCaptureProvider.getActiveWindowPid());
+            acao.setWindowBounds(screenCaptureProvider.getActiveWindowBounds());
+            
+            // Calcular coordenadas relativas à janela
+            Rectangle windowBounds = acao.getWindowBounds();
+            if (windowBounds != null && windowBounds.width > 0 && windowBounds.height > 0) {
+                acao.setRelativeX(acao.getX() - windowBounds.x);
+                acao.setRelativeY(acao.getY() - windowBounds.y);
+            }
+        } catch (Exception e) {
+            System.err.println("Erro ao capturar metadados da janela: " + e.getMessage());
+        }
+    }
+    
+    /**
+     * Captura dados visuais (pixel sample e screenshot)
+     */
+    private void captureVisualData(Acao acao, int x, int y) {
+        try {
+            // Capturar pixel sample (21x21)
+            BufferedImage pixelSample = screenCaptureProvider.captureAround(x, y, PIXEL_SAMPLE_SIZE, PIXEL_SAMPLE_SIZE);
+            if (pixelSample != null) {
+                acao.setPixelSample(pixelSample);
+                acao.setPixelSampleBase64(imageToBase64(pixelSample));
+            }
+            
+            // Capturar screenshot (100x100)
+            BufferedImage screenshot = screenCaptureProvider.captureAround(x, y, SCREENSHOT_SIZE, SCREENSHOT_SIZE);
+            if (screenshot != null) {
+                acao.setScreenshot(screenshot);
+                acao.setScreenshotBase64(imageToBase64(screenshot));
+            }
+        } catch (Exception e) {
+            System.err.println("Erro ao capturar dados visuais: " + e.getMessage());
+        }
+    }
+    
+    /**
+     * Converte BufferedImage para Base64
+     */
+    private String imageToBase64(BufferedImage image) {
+        try {
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            ImageIO.write(image, "PNG", baos);
+            byte[] imageBytes = baos.toByteArray();
+            return Base64.getEncoder().encodeToString(imageBytes);
+        } catch (IOException e) {
+            System.err.println("Erro ao converter imagem para Base64: " + e.getMessage());
+            return "";
+        }
+    }
+    
+    /**
+     * Habilita/desabilita captura de dados visuais
+     */
+    public void setCaptureVisualData(boolean captureVisualData) {
+        this.captureVisualData = captureVisualData;
+    }
+    
+    /**
+     * Define o ScreenCaptureProvider (para injeção de dependência)
+     */
+    public void setScreenCaptureProvider(ScreenCaptureProvider screenCaptureProvider) {
+        this.screenCaptureProvider = screenCaptureProvider;
     }
 }

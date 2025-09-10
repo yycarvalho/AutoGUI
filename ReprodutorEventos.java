@@ -1,26 +1,44 @@
 package main;
 
-import java.awt.Robot;
+import java.awt.Point;
 import java.awt.event.InputEvent;
 import java.awt.event.KeyEvent;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.logging.Logger;
 
 import com.github.kwhat.jnativehook.keyboard.NativeKeyEvent;
+import main.interfaces.InputSimulator;
+import main.interfaces.ScreenCaptureProvider;
+import main.impl.RobotInputSimulator;
+import main.impl.RobotScreenCaptureProvider;
 
 class ReprodutorEventos {
-    private Robot robot;
+    private InputSimulator inputSimulator;
+    private ScreenCaptureProvider screenCaptureProvider;
+    private VerificadorElementos verificador;
     private boolean reproduzindo;
     private ReprodutorListener listener;
+    private static final Logger logger = Logger.getLogger(ReprodutorEventos.class.getName());
     
     public interface ReprodutorListener {
         void onAcaoExecutada(Acao acao, int progresso, int total);
         void onReproducaoCompleta();
         void onErro(String erro);
+        void onValidacaoFalhou(Acao acao, String motivo);
     }
     
     public ReprodutorEventos() throws Exception {
-        this.robot = new Robot();
+        this.inputSimulator = new RobotInputSimulator();
+        this.screenCaptureProvider = new RobotScreenCaptureProvider();
+        this.verificador = new VerificadorElementos();
+        this.reproduzindo = false;
+    }
+    
+    public ReprodutorEventos(InputSimulator inputSimulator, ScreenCaptureProvider screenCaptureProvider) {
+        this.inputSimulator = inputSimulator;
+        this.screenCaptureProvider = screenCaptureProvider;
+        this.verificador = new VerificadorElementos();
         this.reproduzindo = false;
     }
     
@@ -28,37 +46,65 @@ class ReprodutorEventos {
         this.listener = listener;
     }
     
-    public CompletableFuture<Void> reproduzirAcoes(List<Acao> acoes) {
-        return CompletableFuture.runAsync(() -> {
+    public CompletableFuture<ReplayResult> reproduzirAcoes(List<Acao> acoes) {
+        return CompletableFuture.supplyAsync(() -> {
             reproduzindo = true;
+            ReplayResult result = new ReplayResult();
             
             try {
                 for (int i = 0; i < acoes.size() && reproduzindo; i++) {
                     Acao acao = acoes.get(i);
                     
-                    // Aguardar delay antes da execuÃ§Ã£o
+                    // Aguardar delay antes da execução
                     if (acao.getDelay() > 0) {
                         Thread.sleep(acao.getDelay());
                     }
                     
-                    executarAcao(acao);
+                    // Validar elemento antes da execução (se tiver dados visuais)
+                    if (acao.hasVisualData()) {
+                        if (!validarElemento(acao)) {
+                            String motivo = "Elemento não encontrado na tela";
+                            logger.warning("Validação falhou para ação " + acao.getId() + ": " + motivo);
+                            
+                            if (listener != null) {
+                                listener.onValidacaoFalhou(acao, motivo);
+                            }
+                            
+                            // Aplicar política de retry
+                            if (!aplicarPoliticaRetry(acao, result)) {
+                                break;
+                            }
+                        }
+                    }
+                    
+                    // Executar ação com coordenadas ajustadas (ruído controlado)
+                    executarAcaoComRuido(acao);
                     
                     if (listener != null) {
                         listener.onAcaoExecutada(acao, i + 1, acoes.size());
                     }
+                    
+                    result.incrementarAcoesExecutadas();
                 }
                 
                 if (listener != null) {
                     listener.onReproducaoCompleta();
                 }
                 
+                result.setSucesso(true);
+                
             } catch (Exception e) {
+                logger.severe("Erro durante reprodução: " + e.getMessage());
                 if (listener != null) {
-                    listener.onErro("Erro durante reproduÃ§Ã£o: " + e.getMessage());
+                    listener.onErro("Erro durante reprodução: " + e.getMessage());
                 }
+                result.setSucesso(false);
+                result.setErro(e.getMessage());
             } finally {
                 reproduzindo = false;
             }
+            
+            return result;
         });
     }
     
@@ -66,122 +112,133 @@ class ReprodutorEventos {
         reproduzindo = false;
     }
     
-    private void executarAcao(Acao acao) throws InterruptedException {
-    	if(acao.getDelay() == 0)
-    		return;
-        switch (acao.getTipo()) {
-            case MOUSE_CLICK -> executarClickMouse(acao);
-            case MOUSE_MOVE -> executarMovimentoMouse(acao);
-            case SCROLL -> executarScroll(acao);
-            case KEY_PRESS -> executarTeclaPressionada(acao);
-            case KEY_RELEASE -> executarTeclaLiberada(acao);
-            case KEY_TYPE -> executarTeclaDigitada(acao);
+    /**
+     * Valida se o elemento está presente na tela
+     */
+    private boolean validarElemento(Acao acao) {
+        try {
+            if (acao.getPixelSample() != null) {
+                // Capturar região atual da tela
+                Point coords = acao.getAdjustedCoordinates();
+                var currentSample = screenCaptureProvider.captureAround(
+                    coords.x, coords.y, 21, 21);
+                
+                if (currentSample != null) {
+                    return verificador.matches(
+                        acao.getPixelSample(), 
+                        currentSample, 
+                        acao.getValidationTolerancePct()
+                    );
+                }
+            }
+            return true; // Se não tem dados visuais, assume que está OK
+        } catch (Exception e) {
+            logger.warning("Erro na validação: " + e.getMessage());
+            return false;
         }
     }
     
-    private void executarClickMouse(Acao acao) {
-        robot.mouseMove(acao.getX(), acao.getY());
-        robot.delay(100);
+    /**
+     * Aplica política de retry baseada na configuração da ação
+     */
+    private boolean aplicarPoliticaRetry(Acao acao, ReplayResult result) {
+        String policy = acao.getRetryPolicy();
+        
+        switch (policy.toLowerCase()) {
+            case "abort":
+                logger.severe("Política ABORT: interrompendo reprodução");
+                result.setSucesso(false);
+                result.setErro("Validação falhou e política é abort");
+                return false;
+                
+            case "skip":
+                logger.warning("Política SKIP: pulando ação " + acao.getId());
+                result.incrementarAcoesPuladas();
+                return true;
+                
+            case "continue":
+                logger.warning("Política CONTINUE: continuando apesar da falha");
+                result.incrementarAcoesComFalha();
+                return true;
+                
+            default:
+                logger.warning("Política desconhecida: " + policy + ", usando ABORT");
+                return false;
+        }
+    }
+    
+    /**
+     * Executa ação com ruído controlado aplicado às coordenadas
+     */
+    private void executarAcaoComRuido(Acao acao) throws InterruptedException {
+        Point coords = acao.getAdjustedCoordinates();
+        
+        switch (acao.getTipo()) {
+            case MOUSE_CLICK -> executarClickMouse(acao, coords);
+            case MOUSE_MOVE -> executarMovimentoMouse(acao, coords);
+            case SCROLL -> executarScroll(acao, coords);
+            case KEY_PRESS -> executarTeclaPressionada(acao);
+            case KEY_RELEASE -> executarTeclaLiberada(acao);
+            case KEY_TYPE -> executarTeclaDigitada(acao);
+            case PAUSE -> Thread.sleep(acao.getDelay());
+        }
+    }
+    
+    private void executarClickMouse(Acao acao, Point coords) {
+        inputSimulator.moveMouse(coords);
+        inputSimulator.delay(100);
         
         String[] partes = acao.getDetalhes().split("_");
         String botao = partes[0];
         int clicks = Integer.parseInt(partes[1]);
         
-        int botaoMask = switch (botao) {
-            case "ESQUERDO" -> InputEvent.BUTTON1_DOWN_MASK;
-            case "DIREITO" -> InputEvent.BUTTON3_DOWN_MASK;
-            case "MEIO" -> InputEvent.BUTTON2_DOWN_MASK;
-            default -> InputEvent.BUTTON1_DOWN_MASK;
+        int buttonCode = switch (botao) {
+            case "ESQUERDO" -> 1;
+            case "DIREITO" -> 3;
+            case "MEIO" -> 2;
+            default -> 1;
         };
         
-        for (int i = 0; i < clicks; i++) {
-            robot.mousePress(botaoMask);
-            robot.delay(100);
-            robot.mouseRelease(botaoMask);
-            if (i < clicks - 1) robot.delay(100);
-        }
+        inputSimulator.click(coords, buttonCode, clicks);
     }
     
-    private void executarMovimentoMouse(Acao acao) {
-        robot.mouseMove(acao.getX(), acao.getY());
+    private void executarMovimentoMouse(Acao acao, Point coords) {
+        inputSimulator.moveMouse(coords);
     }
     
-    private void executarScroll(Acao acao) {
-        robot.mouseMove(acao.getX(), acao.getY());
-        robot.delay(50);
+    private void executarScroll(Acao acao, Point coords) {
+        inputSimulator.moveMouse(coords);
+        inputSimulator.delay(50);
         
         String[] partes = acao.getDetalhes().split("_");
         String direcao = partes[0];
         int passos = Integer.parseInt(partes[1]);
         
         int scrollDirection = direcao.equals("CIMA") ? -1 : 1;
-        for (int i = 0; i < passos; i++) {
-            robot.mouseWheel(scrollDirection);
-            robot.delay(50);
-        }
+        inputSimulator.mouseWheel(coords, scrollDirection, passos);
     }
     
     private void executarTeclaPressionada(Acao acao) {
-        pressionarTecla(acao.getDetalhes(), true);
+        int keyCode = getKeyCode(acao.getDetalhes());
+        if (keyCode != -1) {
+            inputSimulator.keyPress(keyCode);
+        }
     }
     
     private void executarTeclaLiberada(Acao acao) {
-        pressionarTecla(acao.getDetalhes(), false);
+        int keyCode = getKeyCode(acao.getDetalhes());
+        if (keyCode != -1) {
+            inputSimulator.keyRelease(keyCode);
+        }
     }
     
     private void executarTeclaDigitada(Acao acao) {
         char c = acao.getDetalhes().charAt(0);
         int keyCode = KeyEvent.getExtendedKeyCodeForChar(c);
         if (keyCode != KeyEvent.VK_UNDEFINED) {
-            robot.keyPress(keyCode);
-            robot.delay(50);
-            robot.keyRelease(keyCode);
-        }
-    }
-    
-    private void pressionarTecla(String detalhes, boolean pressionar) {
-        String[] partes = detalhes.split("\\+");
-        
-        // Processar modificadores
-        boolean ctrl = false, alt = false, shift = false, meta = false;
-        String teclaFinal = detalhes;
-        
-        for (String parte : partes) {
-            switch (parte) {
-                case "CTRL" -> ctrl = true;
-                case "ALT" -> alt = true;
-                case "SHIFT" -> shift = true;
-                case "META" -> meta = true;
-                default -> teclaFinal = parte;
-            }
-        }
-        
-        // Aplicar modificadores
-        if (ctrl) {
-            if (pressionar) robot.keyPress(KeyEvent.VK_CONTROL);
-            else robot.keyRelease(KeyEvent.VK_CONTROL);
-        }
-        if (alt) {
-            if (pressionar) robot.keyPress(KeyEvent.VK_ALT);
-            else robot.keyRelease(KeyEvent.VK_ALT);
-        }
-        if (shift) {
-            if (pressionar) robot.keyPress(KeyEvent.VK_SHIFT);
-            else robot.keyRelease(KeyEvent.VK_SHIFT);
-        }
-        if (meta) {
-            if (pressionar) robot.keyPress(KeyEvent.VK_META);
-            else robot.keyRelease(KeyEvent.VK_META);
-        }
-        
-        // Aplicar tecla principal
-        int keyCode = getKeyCode(teclaFinal);
-        if (keyCode != -1) {
-            if (pressionar) {
-                robot.keyPress(keyCode);
-            } else {
-                robot.keyRelease(keyCode);
-            }
+            inputSimulator.keyPress(keyCode);
+            inputSimulator.delay(50);
+            inputSimulator.keyRelease(keyCode);
         }
     }
     
@@ -207,39 +264,23 @@ class ReprodutorEventos {
             }
             
             // Símbolos e caracteres especiais
-            switch (c) {
-                case ' ' -> { return KeyEvent.VK_SPACE; }
-                case '-' -> { return KeyEvent.VK_MINUS; }
-                case '=' -> { return KeyEvent.VK_EQUALS; }
-                case '[' -> { return KeyEvent.VK_OPEN_BRACKET; }
-                case ']' -> { return KeyEvent.VK_CLOSE_BRACKET; }
-                case '\\' -> { return KeyEvent.VK_BACK_SLASH; }
-                case ';' -> { return KeyEvent.VK_SEMICOLON; }
-                case '\'' -> { return KeyEvent.VK_QUOTE; }
-                case ',' -> { return KeyEvent.VK_COMMA; }
-                case '.' -> { return KeyEvent.VK_PERIOD; }
-                case '/' -> { return KeyEvent.VK_SLASH; }
-                case '`' -> { return KeyEvent.VK_BACK_QUOTE; }
-                case '*' -> { return KeyEvent.VK_MULTIPLY; }
-                case '+' -> { return KeyEvent.VK_PLUS; }
-                
-                // Caracteres acentuados e especiais do português
-                case 'ç' -> { return KeyEvent.VK_C; } // Será tratado com combinação
-                case 'Ç' -> { return KeyEvent.VK_C; }
-                case 'á', 'à', 'ã', 'â' -> { return KeyEvent.VK_A; }
-                case 'Á', 'À', 'Ã', 'Â' -> { return KeyEvent.VK_A; }
-                case 'é', 'ê' -> { return KeyEvent.VK_E; }
-                case 'É', 'Ê' -> { return KeyEvent.VK_E; }
-                case 'í' -> { return KeyEvent.VK_I; }
-                case 'Í' -> { return KeyEvent.VK_I; }
-                case 'ó', 'ô', 'õ' -> { return KeyEvent.VK_O; }
-                case 'Ó', 'Ô', 'Õ' -> { return KeyEvent.VK_O; }
-                case 'ú' -> { return KeyEvent.VK_U; }
-                case 'Ú' -> { return KeyEvent.VK_U; }
-                case '~' -> { return KeyEvent.VK_DEAD_TILDE; }
-                case '?' -> { return KeyEvent.VK_SLASH; } // Com shift
-                default -> { return KeyEvent.getExtendedKeyCodeForChar(c); }
-            }
+            return switch (c) {
+                case ' ' -> KeyEvent.VK_SPACE;
+                case '-' -> KeyEvent.VK_MINUS;
+                case '=' -> KeyEvent.VK_EQUALS;
+                case '[' -> KeyEvent.VK_OPEN_BRACKET;
+                case ']' -> KeyEvent.VK_CLOSE_BRACKET;
+                case '\\' -> KeyEvent.VK_BACK_SLASH;
+                case ';' -> KeyEvent.VK_SEMICOLON;
+                case '\'' -> KeyEvent.VK_QUOTE;
+                case ',' -> KeyEvent.VK_COMMA;
+                case '.' -> KeyEvent.VK_PERIOD;
+                case '/' -> KeyEvent.VK_SLASH;
+                case '`' -> KeyEvent.VK_BACK_QUOTE;
+                case '*' -> KeyEvent.VK_MULTIPLY;
+                case '+' -> KeyEvent.VK_PLUS;
+                default -> KeyEvent.getExtendedKeyCodeForChar(c);
+            };
         }
         
         // Para nomes de teclas especiais
@@ -277,5 +318,35 @@ class ReprodutorEventos {
             case "PAUSE" -> KeyEvent.VK_PAUSE;
             default -> -1;
         };
+    }
+    
+    /**
+     * Classe para resultado da reprodução
+     */
+    public static class ReplayResult {
+        private boolean sucesso = false;
+        private int acoesExecutadas = 0;
+        private int acoesPuladas = 0;
+        private int acoesComFalha = 0;
+        private String erro = null;
+        
+        public void incrementarAcoesExecutadas() { acoesExecutadas++; }
+        public void incrementarAcoesPuladas() { acoesPuladas++; }
+        public void incrementarAcoesComFalha() { acoesComFalha++; }
+        
+        // Getters e Setters
+        public boolean isSucesso() { return sucesso; }
+        public void setSucesso(boolean sucesso) { this.sucesso = sucesso; }
+        public int getAcoesExecutadas() { return acoesExecutadas; }
+        public int getAcoesPuladas() { return acoesPuladas; }
+        public int getAcoesComFalha() { return acoesComFalha; }
+        public String getErro() { return erro; }
+        public void setErro(String erro) { this.erro = erro; }
+        
+        @Override
+        public String toString() {
+            return String.format("ReplayResult{sucesso=%s, executadas=%d, puladas=%d, falhas=%d, erro='%s'}", 
+                sucesso, acoesExecutadas, acoesPuladas, acoesComFalha, erro);
+        }
     }
 }
