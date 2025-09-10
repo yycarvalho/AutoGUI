@@ -1,0 +1,110 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" 
+           targetNamespace="http://autogui.yycarvalho.com/schema" 
+           xmlns:tns="http://autogui.yycarvalho.com/schema" 
+           elementFormDefault="qualified">
+
+  <!-- Elemento raiz Session -->
+  <xs:element name="Session">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element name="Meta" type="tns:MetaType"/>
+        <xs:element name="Actions" type="tns:ActionsType"/>
+      </xs:sequence>
+      <xs:attribute name="id" type="xs:string" use="required"/>
+      <xs:attribute name="app" type="xs:string" use="required"/>
+      <xs:attribute name="version" type="xs:string" use="required"/>
+    </xs:complexType>
+  </xs:element>
+
+  <!-- Tipo Meta -->
+  <xs:complexType name="MetaType">
+    <xs:sequence>
+      <xs:element name="Author" type="xs:string"/>
+      <xs:element name="UncertaintyPct" type="xs:decimal"/>
+      <xs:element name="ValidationTolerancePct" type="xs:decimal"/>
+      <xs:element name="RetryPolicy" type="tns:RetryPolicyType"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <!-- Tipo Actions -->
+  <xs:complexType name="ActionsType">
+    <xs:sequence>
+      <xs:element name="Action" type="tns:ActionType" maxOccurs="unbounded"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <!-- Tipo Action -->
+  <xs:complexType name="ActionType">
+    <xs:sequence>
+      <xs:element name="Window" type="tns:WindowType"/>
+      <xs:element name="Coords" type="tns:CoordsType"/>
+      <xs:element name="PixelSample" type="tns:PixelSampleType" minOccurs="0"/>
+      <xs:element name="Screenshot" type="tns:ScreenshotType" minOccurs="0"/>
+      <xs:element name="Validation" type="tns:ValidationType"/>
+      <xs:element name="Notes" type="xs:string"/>
+    </xs:sequence>
+    <xs:attribute name="id" type="xs:positiveInteger" use="required"/>
+    <xs:attribute name="type" type="tns:ActionTypeEnum" use="required"/>
+    <xs:attribute name="timestamp" type="xs:dateTime" use="required"/>
+  </xs:complexType>
+
+  <!-- Tipo Window -->
+  <xs:complexType name="WindowType">
+    <xs:attribute name="title" type="xs:string" use="required"/>
+    <xs:attribute name="pid" type="xs:long" use="required"/>
+  </xs:complexType>
+
+  <!-- Tipo Coords -->
+  <xs:complexType name="CoordsType">
+    <xs:attribute name="absoluteX" type="xs:integer" use="required"/>
+    <xs:attribute name="absoluteY" type="xs:integer" use="required"/>
+    <xs:attribute name="relativeX" type="xs:integer" use="required"/>
+    <xs:attribute name="relativeY" type="xs:integer" use="required"/>
+  </xs:complexType>
+
+  <!-- Tipo PixelSample -->
+  <xs:complexType name="PixelSampleType">
+    <xs:simpleContent>
+      <xs:extension base="xs:base64Binary">
+        <xs:attribute name="width" type="xs:positiveInteger" use="required"/>
+        <xs:attribute name="height" type="xs:positiveInteger" use="required"/>
+      </xs:extension>
+    </xs:simpleContent>
+  </xs:complexType>
+
+  <!-- Tipo Screenshot -->
+  <xs:complexType name="ScreenshotType">
+    <xs:attribute name="path" type="xs:string" use="required"/>
+    <xs:attribute name="base64" type="xs:base64Binary" use="required"/>
+  </xs:complexType>
+
+  <!-- Tipo Validation -->
+  <xs:complexType name="ValidationType">
+    <xs:attribute name="tolerancePct" type="xs:decimal" use="required"/>
+    <xs:attribute name="maxWaitMs" type="xs:positiveInteger" use="required"/>
+  </xs:complexType>
+
+  <!-- Enumeração para tipos de ação -->
+  <xs:simpleType name="ActionTypeEnum">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="MOUSE_CLICK"/>
+      <xs:enumeration value="MOUSE_MOVE"/>
+      <xs:enumeration value="SCROLL"/>
+      <xs:enumeration value="KEY_PRESS"/>
+      <xs:enumeration value="KEY_RELEASE"/>
+      <xs:enumeration value="KEY_TYPE"/>
+      <xs:enumeration value="PAUSE"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <!-- Enumeração para políticas de retry -->
+  <xs:simpleType name="RetryPolicyType">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="abort"/>
+      <xs:enumeration value="skip"/>
+      <xs:enumeration value="continue"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+</xs:schema>

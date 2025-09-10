@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Session id="20250909T201500Z" app="AutoGUI" version="1.0">
+  <Meta>
+    <Author>yycarvalho</Author>
+    <UncertaintyPct>1.5</UncertaintyPct>
+    <ValidationTolerancePct>95</ValidationTolerancePct>
+    <RetryPolicy>abort</RetryPolicy>
+  </Meta>
+  <Actions>
+    <Action id="1" type="MOUSE_CLICK" timestamp="2025-09-09T20:15:02.000Z">
+      <Window title="Notepad" pid="1234"/>
+      <Coords absoluteX="100" absoluteY="200" relativeX="50" relativeY="25"/>
+      <PixelSample width="21" height="21">iVBORw0KGgoAAAANSUhEUgAAABUAAAAVCAYAAACpF6WWAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAADsQAAA7EAZUrDhsAAAANSURBVDhPYzh8+PB/AAffA0nNPuCLAAAAAElFTkSuQmCC</PixelSample>
+      <Screenshot path="screens/1.png" base64="iVBORw0KGgoAAAANSUhEUgAAAGQAAABkCAYAAABw4pVUAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAADsQAAA7EAZUrDhsAAAANSURBVDhPYzh8+PB/AAffA0nNPuCLAAAAAElFTkSuQmCC"/>
+      <Validation tolerancePct="95" maxWaitMs="60000"/>
+      <Notes>ESQUERDO_1</Notes>
+    </Action>
+    <Action id="2" type="KEY_PRESS" timestamp="2025-09-09T20:15:03.000Z">
+      <Window title="Notepad" pid="1234"/>
+      <Coords absoluteX="100" absoluteY="200" relativeX="50" relativeY="25"/>
+      <Validation tolerancePct="95" maxWaitMs="60000"/>
+      <Notes>H</Notes>
+    </Action>
+    <Action id="3" type="KEY_RELEASE" timestamp="2025-09-09T20:15:03.100Z">
+      <Window title="Notepad" pid="1234"/>
+      <Coords absoluteX="100" absoluteY="200" relativeX="50" relativeY="25"/>
+      <Validation tolerancePct="95" maxWaitMs="60000"/>
+      <Notes>H</Notes>
+    </Action>
+  </Actions>
+</Session>
